@@ -1,6 +1,7 @@
 #include <LGPS.h>
 
-const String id = "00";
+const int type = 0x01;
+const int id = 0x00;
 
 int a;
 int count = 0,num = 0;  
@@ -8,9 +9,13 @@ int count = 0,num = 0;
 String apple;
 char sdata;
 String asd;
+char NS,WE;
 
 gpsSentenceInfoStruct info;
 char buff[256];
+char cLatitude[10];
+char cLongitude[10];
+char fix = '0';
 
 static unsigned char getComma(unsigned char num,const char *str)
 {
@@ -84,6 +89,7 @@ void parseGPGGA(const char* GPGGAstr)
   double latitude;
   double longitude;
   int tmp, hour, minute, second;
+  
   if(GPGGAstr[0] == '$')
   {
     tmp = getComma(1, GPGGAstr);
@@ -93,16 +99,32 @@ void parseGPGGA(const char* GPGGAstr)
     
     sprintf(buff, "UTC timer %2d-%2d-%2d", hour, minute, second);
     //Serial.println(buff);
-     tmp = getComma(2, GPGGAstr);
+    tmp = getComma(2, GPGGAstr);
     latitude = getDoubleNumber(&GPGGAstr[tmp]);
+    tmp = getComma(3, GPGGAstr);
+    NS = GPGGAstr[tmp];
+    Serial.println("NS1 " + String(NS) );
     tmp = getComma(4, GPGGAstr);
     longitude = getDoubleNumber(&GPGGAstr[tmp]);
-    asd = String(latitude) +'#'+String(longitude);
-    sprintf(buff, "latitude = %10.4f, longitude = %10.4f", latitude, longitude);
+    tmp = getComma(5, GPGGAstr);
+    WE = GPGGAstr[tmp];
+    //Serial.println("WE" + String(WE) );
+    
+    sprintf(cLatitude,  "%10.4f", latitude);
+    sprintf(cLongitude, "%10.4f", longitude);
+    //sprintf(buff, "latitude = %10.4f, longitude = %10.4f", latitude, longitude);
     //Serial.println(buff); 
     
     tmp = getComma(7, GPGGAstr);
-    num = getIntNumber(&GPGGAstr[tmp]);    
+    num = getIntNumber(&GPGGAstr[tmp]);
+    if(num >0)
+    {
+      fix = '1' ;
+    }
+    else
+    {
+      fix = '0';  
+    }
     //sprintf(buff, "satellites number = %d", num);
     //Serial.println(buff); 
   }
@@ -121,6 +143,54 @@ void loraInit()
   Serial1.print('\r');
   delay(500);
 }
+int charToInt(char *c, int s, int e)
+{
+    char buf[5];
+    int i = 0;
+    int p = 0;
+    //Serial.println("e-s" + String(e-s));
+    for(i = s;i<e;i++)
+    {
+      //Serial.println(c[i]);
+      p += (c[i]-'0')*pow(10,(e-i-1)); 
+    }
+    Serial.println("p " + String(p));
+    return p;
+}
+byte hexTobyte(String s)
+{
+  byte b= 0x00;
+  int j = 0;
+  if(s[0] <= '9')
+  {
+   j = (s[0]-'0')*16; 
+  }
+  else
+  {
+    j = (s[0]-  'a'+10)*16;
+  }
+  if(s[1] <= '9')
+  {
+   j += (s[1]-'0');
+  }
+  else
+  {
+    j += (s[1]-  'a'+10);
+  }
+  Serial.println("j2 " + String(j));
+  b = j;
+  return b; 
+}
+
+String fix4(String s)
+{
+  int i =0;
+  for(i=0;i<(4-s.length());i++)
+  {
+    s ='0'+s;  
+  }
+  return s;
+}
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
@@ -131,33 +201,116 @@ void setup() {
   Serial.println("Hello, world1?");
   loraInit();
 }
+
 void loop() {
   int heart = 0;
-  int i;
+  int i,l;
+  String s="",s2 = "";
+  byte data[30],b;
+  data[0] = type;
+  data[1] = id;
+ 
   // put your main code here, to run repeatedly:
   //Serial.println("LGPS loop"); 
   LGPS.getData(&info);
   //Serial.println((char*)info.GPGGA); 
   parseGPGGA((const char*)info.GPGGA);
-  asd += "#" + String(num);
-  asd += "#" + String(heart);
-  asd += "#" + id;
-  asd += "#" + String(asd.length()+3);
+
+  l = charToInt(cLatitude,1,5);
+  s = String(l,HEX);
+  Serial.println("hex "+s);
+  s = fix4(s);
+  Serial.println(s);
+  s2 = s.substring(0,2);
+  Serial.println("s2 " + s2);
+  b = hexTobyte(s2);
+  data[2] = b;
   
-  Serial.println(asd.length());
-  Serial.println(asd);
+  s2 = s.substring(2,4);
+  Serial.println("s2 " + s2);
+  b = hexTobyte(s2);
+  data[3] = b;
+  Serial.println(String(b));
   
+  l = charToInt(cLatitude,6,10);
+  s = String(l,HEX);
+  Serial.println("hex2 "+s);
+  s = fix4(s);
+  s2 = s.substring(0,2);
+  Serial.println("s2" + s2);
+  b = hexTobyte(s2);
+  data[4] = b;
+  
+  s2 = s.substring(2,4);
+  Serial.println("s2" + s2);
+  b = hexTobyte(s2);
+  data[5] = b;
+  Serial.println("NS " + String(NS));
+  if(NS =='N')
+  {
+    data[6] = 0x00;  
+  }
+  else if(NS =='S')
+  {
+    data[6] = 0x01;  
+  }
+  //-----------------
+  l = charToInt(cLongitude,0,5);
+  s = String(l,HEX);
+  s = fix4(s);
+  Serial.println("hex WE1 "+s);
+  s2 = s.substring(0,2);
+  Serial.println("s2 " + s2);
+  b = hexTobyte(s2);
+  data[7] = b;
+  s2 = s.substring(2,4);
+  Serial.println("s2 " + s2);
+  b = hexTobyte(s2);
+  data[8] = b;
+  l = charToInt(cLongitude,5,9);
+  s = String(l,HEX);
+  s = fix4(s);
+  Serial.println("hex WE2 "+s);
+  s2 = s.substring(0,2);
+  Serial.println("s2 " + s2);
+  b = hexTobyte(s2);
+  data[9] = b;
+  s2 = s.substring(2,4);
+  Serial.println("s2 " + s2);
+  b = hexTobyte(s2);
+  data[10] = b;
+   if(WE =='E')
+  {
+    data[6] = 0x00;  
+  }
+  else if(WE =='W')
+  {
+    data[6] = 0x01;  
+  }
+  
+  
+  Serial.println(WE);
+  Serial.println(cLatitude);
+  Serial.println(cLongitude);
+  Serial.println(fix);
+  
+  Serial.println("data");
+  for(i=0;i<9;i++)
+  {
+    Serial.print(String(data[i],HEX));
+  }
+  Serial.println("");
+  
+  /*
   Serial1.print("p2p tx ");
   for(i = 0 ; i <asd.length(); i++)
   {
     Serial1.print( asd[i],HEX);
   }
   Serial1.print('\r');
+  */
   //Serial1.print("p2p tx 000000");
   //Serial1.print("\r\n");
-  
-  Serial.println("satellites number = " + String(num ));
-  num = 0;
   delay(5000);
   
 }
