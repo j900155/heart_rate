@@ -202,9 +202,16 @@ String fix4(String s)
   }
   return s;
 }
+
+void interrupt()
+{
+  Serial.println("interrupt");
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
+  attachInterrupt(0, interrupt, RISING);
   LGPS.powerOn();
   Serial.println("LGPS Power on, and waiting ..."); 
   delay(5000);
@@ -330,7 +337,7 @@ void loop() {
   }
   data[16] = check;
   //Serial.println("data"); 
-  
+  noInterrupts();
   Serial1.print("p2p tx ");
   for(i=0;i<17;i++)
   {
@@ -343,7 +350,7 @@ void loop() {
     //Serial1.write(data[i]);
   }
   Serial1.print('\r');
-  
+  interrupts();
   //Serial1.print("p2p tx 000000");
   //Serial1.print("\r\n");
   delay(5000);
