@@ -1,7 +1,7 @@
 #include <LGPS.h>
 
-const int type = 0x01;
-const int id = 0x00;
+const byte type = 0x01;
+const byte id = 0x00;
 
 int a;
 int count = 0,num = 0;  
@@ -10,11 +10,11 @@ String apple;
 char sdata;
 String asd;
 char NS,WE;
-
+int SoS = 0;
 gpsSentenceInfoStruct info;
 char buff[256];
-char cLatitude[10];
-char cLongitude[10];
+double latitude;
+double longitude;
 char fix = '0';
 
 static unsigned char getComma(unsigned char num,const char *str)
@@ -86,8 +86,8 @@ void parseGPGGA(const char* GPGGAstr)
    *  (empty field) DGPS station ID number
    *  *47          the checksum data, always begins with *
    */
-  double latitude;
-  double longitude;
+  //double latitude;
+  //double longitude;
   int tmp, hour, minute, second;
   
   if(GPGGAstr[0] == '$')
@@ -110,8 +110,8 @@ void parseGPGGA(const char* GPGGAstr)
     WE = GPGGAstr[tmp];
     //Serial.println("WE" + String(WE) );
     
-    sprintf(cLatitude,  "%10.4f", latitude);
-    sprintf(cLongitude, "%10.4f", longitude);
+    //sprintf(cLatitude,  "%10.4f", latitude);
+    //sprintf(cLongitude, "%10.4f", longitude);
     //sprintf(buff, "latitude = %10.4f, longitude = %10.4f", latitude, longitude);
     //Serial.println(buff); 
     
@@ -143,69 +143,49 @@ void loraInit()
   Serial1.print('\r');
   delay(500);
 }
-int charToInt(char *c, int s, int e)
-{
-    int i = 0;
-    int p = 0;
-    Serial.println("e-s" + String(c));
-    for(i = s;i<e;i++)
-    {
-      
-      if(c[i]>= '0' && c[i] <='9')
-      {
-        Serial.print(String(i) + String(c[i]));
-        p += (c[i]-'0')*pow(10,(e-i-1)); 
-      }
-    }
-    Serial.println("");
-    Serial.println("charToInt 1  " + String(p));
-    if(p<0)
-    {
-     p = 0;  
-    }
-    Serial.println("charToInt " + String(p));
-    return p;
-}
-byte hexTobyte(String s)
-{
-  byte b= 0x00;
-  int j = 0;
-  if(s[0] <= '9')
-  {
-   j = (s[0]-'0')*16; 
-  }
-  else
-  {
-    j = (s[0]-  'a'+10)*16;
-  }
-  if(s[1] <= '9')
-  {
-   j += (s[1]-'0');
-  }
-  else
-  {
-    j += (s[1]-  'a'+10);
-  }
-  //Serial.println("j2 " + String(j));
-  b = j;
-  return b; 
-}
 
-String fix4(String s)
+int strToByte(int s, byte *data, String str)
 {
-  int i =0;
-  int l = s.length();
-  Serial.println("s.length " + String(l));
-  for(i=0;i<(4 - l);i++)
+  int i  = 0, j;
+  byte tmp = 0x00;
+  Serial.println("str " + str + "len" + str.length());
+  if(str.length() %2 != 0 )
   {
-    s ="0"+s;  
+    return -1;  
   }
-  return s;
+  for(i = 0; i<(str.length()/2); i++)
+  {
+    j = 0;
+    int k = i*2;
+    if(str[k] <= '9')
+    {
+      j = (str[k]-'0')*16; 
+    }
+    else
+    {
+      j = (str[k]-  'a'+10)*16;
+    }
+    if(str[k+1] <= '9')
+    {
+      j += (str[k+1]-'0');
+    }
+    else
+    {
+      j += (str[k+1]-  'a'+10);
+    }
+    tmp = j;
+    Serial.print( String(tmp, HEX) + " j " + String(j) + "  ");
+    data[s+i] = tmp;
+  }
+  Serial.println();
+
+  return 0;
 }
 
 void interrupt()
 {
   Serial.println("interrupt");
+  SoS = 1;
 }
 
 void setup() {
@@ -224,122 +204,95 @@ void loop() {
   int heart = 0;
   int i,l;
   String s="",s2 = "";
-  byte data[20],b;
+  int iLongitude,iLatitude;
+  byte data[20];
+  data[12] = 0x00;
+  unsigned long time = time = millis();
+  while( millis() - time <5000 )
+  {
+    if(SoS ==1)
+    {
+      SoS = 1;
+      data[12] = 0x80;
+      SoS = 0;
+      break;  
+    }
+  }
+  
   data[0] = type;
   data[1] = id;
- 
   // put your main code here, to run repeatedly:
   //Serial.println("LGPS loop"); 
   LGPS.getData(&info);
   //Serial.println((char*)info.GPGGA); 
   parseGPGGA((const char*)info.GPGGA);
 
-  
-  
-  Serial.println(cLatitude);
-  Serial.println("NS1 " + String(NS) );
-  Serial.println(cLongitude);
-  Serial.println(String(WE));
-  
-  Serial.println("fix " + String(fix));
-  //N1
-  l = charToInt(cLatitude,1,5);
-  s = String(l,HEX);
-  //Serial.println("hex "+s);
-  s = fix4(s);
-  Serial.println(s);
-  
-  s2 = s.substring(0,2);
-  Serial.println("N1 " + s2);
-  b = hexTobyte(s2);
-  data[2] = b;
-  
-  s2 = s.substring(2,5);
-  Serial.println("N1 " + s2);
-  b = hexTobyte(s2);
-  data[3] = b;
-  //Serial.println(String(b));
-  
-  //N2
-  l = charToInt(cLatitude,6,10);
-  s = String(l,HEX);
-  //Serial.println("hex2 "+s);
-  s = fix4(s);
-  Serial.println("N2 s "+s);
-  s2 = s.substring(0,2);
-  Serial.println("N2 " + s2);
-  b = hexTobyte(s2);
-  data[4] = b;
-  
-  s2 = s.substring(2,5);
-  Serial.println("N2 " + s2);
-  b = hexTobyte(s2);
-  data[5] = b;
-  
-  //Serial.println("NS " + String(NS));
-  if(NS =='N')
+  iLongitude = (int)longitude*1000;
+  iLatitude = (int)latitude*1000;
+
+  s2 = String(iLatitude, HEX);
+  //fix iLatitude.length = 7
+  l = s2.length();
+  l = 7-l;
+  for(i = 0; i < l;i++)
   {
-    data[6] = 0x00;  
+    s2 = "0" + s2;
   }
-  else if(NS =='S')
+    if(NS = 'N')
   {
-    data[6] = 0x01;  
+    s2 = "0" + s2;
   }
-  //--------------
-  l = charToInt(cLongitude,0,5);
-  s = String(l,HEX);
-  s = fix4(s);
-  //Serial.println("hex WE1 "+s);
-  s2 = s.substring(0,2);
-  Serial.println("W1 " + s2);
-  b = hexTobyte(s2);
-  data[7] = b;
-  s2 = s.substring(2,4);
-  Serial.println("W1 " + s2);
-  b = hexTobyte(s2);
-  data[8] = b;
-  l = charToInt(cLongitude,6,10);
-  s = String(l,HEX);
-  s = fix4(s);
-  //Serial.println("W2 "+s);
-  s2 = s.substring(0,2);
-  Serial.println("W2 " + s2);
-  b = hexTobyte(s2);
-  data[9] = b;
-  s2 = s.substring(2,4);
-  Serial.println("W2 " + s2);
-  b = hexTobyte(s2);
-  data[10] = b;
-   if(WE =='E' )
+  else
   {
-    data[11] = 0x00;  
+    s2 = "1" + s2;
   }
-  else if(WE =='W')
+  Serial.println(s2);
+  //data[2 ~5]
+  strToByte(2,data,s2);
+  s2 = "";
+  
+  s2 = String(iLongitude, HEX);
+  l = s2.length();
+  l = 7-l;
+  //fix iLongitude.length = 7
+  for(i = 0; i <l;i++)
   {
-    data[11] = 0x01;  
+    s2 = "0" + s2;
   }
-  if(fix =='0')
+  if(WE = 'E')
   {
-    data[6] = 0x10; 
-    data[11] = 0x10;
+    s2 = "0" + s2;
   }
+  else
+  {
+    s2 = "1" + s2;
+  }
+  Serial.println(s2);
+  //data[6 ~9]
+  strToByte(6,data,s2);
+ 
   //heart
-  data[12] = 0x00;
-  data[13] = 0x00;
-  //keep
-  data[14] = 0x00;
-  data[15] = 0x00;
+  data[10] = 0x00;
+  data[11] = 0x00;
+  //status
+  //data[12] = 0x00;
+   if(fix =='0')
+  {
+    data[12] |= 0x01;
+  }
+  data[12] |= 0x02;
   //check sum
   byte check = 0x00;
-  for(i = 0;i<16; i++)
+  for(i = 0;i<13; i++)
   {
     check = check ^ data[i] ;
   }
-  data[16] = check;
+  data[13] = check;
   //Serial.println("data"); 
   noInterrupts();
   Serial1.print("p2p tx ");
-  for(i=0;i<17;i++)
+  Serial.print("p2p tx ");
+  for(i=0;i<14;i++)
   {
    String fk = String(data[i],HEX);
    if(fk.length() <2)
@@ -347,12 +300,13 @@ void loop() {
     fk = "0"+fk; 
    }
    Serial1.print(fk);
-    //Serial1.write(data[i]);
+   Serial.print(fk);
   }
   Serial1.print('\r');
+  Serial.println();
   interrupts();
   //Serial1.print("p2p tx 000000");
   //Serial1.print("\r\n");
-  delay(5000);
+  
   
 }
