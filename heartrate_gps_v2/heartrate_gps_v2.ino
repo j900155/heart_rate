@@ -1,7 +1,7 @@
 #include <LGPS.h>
 
 const byte type = 0x01;
-const byte id[4] ={0x12,0x34,0x56,0x78};
+const byte id = 0x00;
 
 int a;
 int count = 0,num = 0;  
@@ -174,7 +174,7 @@ int strToByte(int s, byte *data, String str)
       j += (str[k+1]-  'a'+10);
     }
     tmp = j;
-    Serial.print( String((s+i))+ "  " +String(tmp, HEX) + " j " + String(j) + "  ");
+    Serial.print( String(tmp, HEX) + " j " + String(j) + "  ");
     data[s+i] = tmp;
   }
   Serial.println();
@@ -205,8 +205,8 @@ void loop() {
   int i,l;
   String s="",s2 = "";
   int iLongitude,iLatitude;
-  byte data[25];
-  data[15] = 0x00;
+  byte data[20];
+  data[12] = 0x00;
   unsigned long time = time = millis();
   while( millis() - time <5000 )
   {
@@ -220,10 +220,7 @@ void loop() {
   }
   
   data[0] = type;
-  data[1] = id[0];
-  data[2] = id[1];
-  data[3] = id[2];
-  data[4] = id[3];
+  data[1] = id;
   // put your main code here, to run repeatedly:
   //Serial.println("LGPS loop"); 
   LGPS.getData(&info);
@@ -251,8 +248,7 @@ void loop() {
   }
   Serial.println(s2);
   //data[2 ~5]
-  //data[5 ~8]
-  strToByte(5,data,s2);
+  strToByte(2,data,s2);
   s2 = "";
   
   s2 = String(iLongitude, HEX);
@@ -273,31 +269,30 @@ void loop() {
   }
   Serial.println(s2);
   //data[6 ~9]
-  //data[9 ~12]
-  strToByte(9,data,s2);
+  strToByte(6,data,s2);
  
   //heart
-  data[13] = 0x00;
-  data[14] = 0x00;
+  data[10] = 0x00;
+  data[11] = 0x00;
   //status
   //data[12] = 0x00;
    if(fix =='0')
   {
-    data[15] |= 0x01;
+    data[12] |= 0x01;
   }
-  data[15] |= 0x02;
+  data[12] |= 0x02;
   //check sum
   byte check = 0x00;
-  for(i = 0;i<16; i++)
+  for(i = 0;i<13; i++)
   {
     check = check ^ data[i] ;
   }
-  data[16] = check;
+  data[13] = check;
   //Serial.println("data"); 
   noInterrupts();
   Serial1.print("p2p tx ");
   Serial.print("p2p tx ");
-  for(i=0;i<17;i++)
+  for(i=0;i<14;i++)
   {
    String fk = String(data[i],HEX);
    if(fk.length() <2)
